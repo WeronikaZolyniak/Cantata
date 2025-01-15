@@ -7,9 +7,11 @@
 #include "miniaudio.h"
 
 ma_device device;
-ma_decoder melodydecoder;
-ma_decoder beepdecoder;
 bool beepactive = false;
+
+Uint8* audiobuff;
+Uint32 audiolen;
+int AudioBuffIndex = 0;
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -18,13 +20,22 @@ SDL_Surface* screenSurface = nullptr;
 
 void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	float* pOutputF32 = (float*)pOutput;
-	ma_decoder* pDecoder = (ma_decoder*)pDevice->pUserData;
-	if (pDecoder == NULL) { return; }
+	if (AudioBuffIndex + frameCount * sizeof(float) * 2 > audiolen)
+	{
+		int RestOfSoundLength = audiolen - AudioBuffIndex;
+		SDL_memcpy(pOutput, audiobuff + AudioBuffIndex, RestOfSoundLength);
+		int BegginingLength = (frameCount * sizeof(float) * 2) - RestOfSoundLength;
+		//AudioBuffIndex = 0;
+		SDL_memcpy(pOutput, audiobuff, BegginingLength);
+		AudioBuffIndex = BegginingLength;
+		return;
+	}
 
-	ma_decoder_read_pcm_frames(pDecoder, pOutputF32, frameCount, NULL);
+	SDL_memcpy(pOutput, audiobuff + AudioBuffIndex, sizeof(float) * frameCount * 2);
+	AudioBuffIndex += sizeof(float) * frameCount * 2;
 
-	if (beepactive)
+
+	/*if (beepactive)
 	{
 		float temp[4096];
 		ma_uint64 framesRead;
@@ -40,7 +51,7 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 			std::cout << "Finishedbeep\n";
 			beepactive = false;
 		}
-	}
+	}*/
 
 }
 
@@ -61,25 +72,21 @@ void Init()
 	screenSurface = SDL_GetWindowSurface(window);
 
 	
-	if (ma_decoder_init_file("melody.wav", NULL, &melodydecoder) != MA_SUCCESS)
+
+	SDL_AudioSpec AudioSpec;
+
+	if (!SDL_LoadWAV("melody.wav", &AudioSpec, &audiobuff, &audiolen))
 	{
-		std::cout << "miniaudio decoder file(s) could not be initialized\n";
-		exit(-1);
+		std::cout << SDL_GetError();
 	}
 
-	ma_decoder_config decoder_config = ma_decoder_config_init(melodydecoder.outputFormat, melodydecoder.outputChannels, melodydecoder.outputSampleRate);
-	if (ma_decoder_init_file("beep.wav", &decoder_config, &beepdecoder) != MA_SUCCESS)
-	{
-		std::cout << "miniaudio decoder file(s) could not be initialized\n";
-		exit(-1);
-	}
 
 	ma_device_config deviceconfig = ma_device_config_init(ma_device_type_playback); //automatically sets values to device's native configuration
-	deviceconfig.playback.format = melodydecoder.outputFormat;
+	/*deviceconfig.playback.format = melodydecoder.outputFormat;
 	deviceconfig.playback.channels = melodydecoder.outputChannels;
-	deviceconfig.sampleRate = melodydecoder.outputSampleRate;
+	deviceconfig.sampleRate = melodydecoder.outputSampleRate;*/
 	deviceconfig.dataCallback = data_callback; //setting callback
-	deviceconfig.pUserData = &melodydecoder;
+	//deviceconfig.pUserData = &melodydecoder;
 
 
 	if (ma_device_init(NULL, &deviceconfig, &device) != MA_SUCCESS)
@@ -87,6 +94,15 @@ void Init()
 		std::cout << "miniaudio melody device could not be initialized\n";
 		exit(-1);
 	}
+
+	ma_device_info device_info;
+	if (ma_device_get_info(&device, ma_device_type_playback, &device_info) != MA_SUCCESS)
+	{
+		SDL_Log("Failed to query info about Signals device!");
+
+	}
+
+	std::cout << "soja";
 }
 
 void PlayBeepSound()
@@ -94,7 +110,6 @@ void PlayBeepSound()
 	if (!beepactive)
 	{
 		beepactive = true;
-		ma_decoder_seek_to_pcm_frame(&beepdecoder, 0);
 	}
 	
 }
@@ -102,7 +117,6 @@ void PlayBeepSound()
 void DeInit()
 {
 	ma_device_uninit(&device);
-	ma_decoder_uninit(&melodydecoder);
 }
 
 int main(int argc, char* args[])
