@@ -2,6 +2,7 @@
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_audio.h>
 #include <iostream>
+#include <vector>
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
@@ -11,7 +12,11 @@ bool beepactive = false;
 
 Uint8* audiobuff;
 Uint32 audiolen;
-int AudioBuffIndex = 0;
+int AudioBuffByteOffset = 0;
+
+Uint8* beepbuff;
+Uint32 beeplen;
+int beepBuffByteOffset = 0;
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -20,39 +25,42 @@ SDL_Surface* screenSurface = nullptr;
 
 void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	if (AudioBuffIndex + frameCount * sizeof(float) * 2 > audiolen)
+	Uint8* pOutputF32 = audiobuff + AudioBuffByteOffset;
+	if (beepactive)
 	{
-		int RestOfSoundLength = audiolen - AudioBuffIndex;
-		SDL_memcpy(pOutput, audiobuff + AudioBuffIndex, RestOfSoundLength);
-		int BegginingLength = (frameCount * sizeof(float) * 2) - RestOfSoundLength;
-		//AudioBuffIndex = 0;
-		SDL_memcpy(pOutput, audiobuff, BegginingLength);
-		AudioBuffIndex = BegginingLength;
-		return;
+		if (beepBuffByteOffset + frameCount * sizeof(float) > beeplen)
+		{
+			beepactive = false;
+			beepBuffByteOffset = 0;
+		}
+		else
+		{
+			float* OutputSamples = (float*)pOutputF32;
+			float* BeepSamples = (float*)(beepbuff + beepBuffByteOffset);
+			for (int i = 0; i < frameCount * 2; i++)
+			{
+				OutputSamples[2 * i] += BeepSamples[i];
+				OutputSamples[2 * i + 1] += BeepSamples[i];
+			}
+
+			beepBuffByteOffset += sizeof(float) * frameCount;
+		}
 	}
 
-	SDL_memcpy(pOutput, audiobuff + AudioBuffIndex, sizeof(float) * frameCount * 2);
-	AudioBuffIndex += sizeof(float) * frameCount * 2;
-
-
-	/*if (beepactive)
+	//looping
+	if (AudioBuffByteOffset + frameCount * sizeof(float) * 2 > audiolen)
 	{
-		float temp[4096];
-		ma_uint64 framesRead;
-		ma_decoder_read_pcm_frames(&beepdecoder, temp, frameCount, &framesRead);
-
-		for (ma_uint64 i = 0; i < framesRead; i++)
-		{
-			pOutputF32[i] += temp[i];
-		}
-
-		if (framesRead < frameCount)
-		{
-			std::cout << "Finishedbeep\n";
-			beepactive = false;
-		}
-	}*/
-
+		int RestOfSoundLength = audiolen - AudioBuffByteOffset;
+		SDL_memcpy(pOutput, audiobuff + AudioBuffByteOffset, RestOfSoundLength);
+		int BegginingLength = (frameCount * sizeof(float) * 2) - RestOfSoundLength;
+		SDL_memcpy(pOutput, audiobuff, BegginingLength);
+		AudioBuffByteOffset = BegginingLength;
+		return;
+	}
+	
+	
+	SDL_memcpy(pOutput, pOutputF32, sizeof(float) * frameCount * 2);
+	AudioBuffByteOffset += sizeof(float) * frameCount * 2;
 }
 
 void Init()
@@ -80,13 +88,14 @@ void Init()
 		std::cout << SDL_GetError();
 	}
 
+	if (!SDL_LoadWAV("beep.wav", &AudioSpec, &beepbuff, &beeplen))
+	{
+		std::cout << SDL_GetError();
+	}
+
 
 	ma_device_config deviceconfig = ma_device_config_init(ma_device_type_playback); //automatically sets values to device's native configuration
-	/*deviceconfig.playback.format = melodydecoder.outputFormat;
-	deviceconfig.playback.channels = melodydecoder.outputChannels;
-	deviceconfig.sampleRate = melodydecoder.outputSampleRate;*/
-	deviceconfig.dataCallback = data_callback; //setting callback
-	//deviceconfig.pUserData = &melodydecoder;
+	deviceconfig.dataCallback = data_callback;
 
 
 	if (ma_device_init(NULL, &deviceconfig, &device) != MA_SUCCESS)
@@ -101,8 +110,6 @@ void Init()
 		SDL_Log("Failed to query info about Signals device!");
 
 	}
-
-	std::cout << "soja";
 }
 
 void PlayBeepSound()
