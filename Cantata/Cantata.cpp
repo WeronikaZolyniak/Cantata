@@ -13,6 +13,7 @@ bool beepactive = false;
 Uint8* audiobuff;
 Uint32 audiolen;
 int AudioBuffByteOffset = 0;
+float AudioVolume = 0.4;
 
 Uint8* beepbuff;
 Uint32 beeplen;
@@ -79,13 +80,17 @@ void Init()
 	}
 	screenSurface = SDL_GetWindowSurface(window);
 
-	
-
 	SDL_AudioSpec AudioSpec;
 
 	if (!SDL_LoadWAV("melody.wav", &AudioSpec, &audiobuff, &audiolen))
 	{
 		std::cout << SDL_GetError();
+	}
+
+	float* AudioSamples = (float*)audiobuff;
+	for (int i = 0; i <  audiolen / sizeof(float); i++)
+	{
+		AudioSamples[i] *= AudioVolume;
 	}
 
 	if (!SDL_LoadWAV("beep.wav", &AudioSpec, &beepbuff, &beeplen))
