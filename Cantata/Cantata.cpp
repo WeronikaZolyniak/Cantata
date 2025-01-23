@@ -18,6 +18,7 @@ float AudioVolume = 0.4;
 Uint8* beepbuff;
 Uint32 beeplen;
 int beepBuffByteOffset = 0;
+float beepVolume = 0.6;
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -98,6 +99,12 @@ void Init()
 		std::cout << SDL_GetError();
 	}
 
+	AudioSamples = (float*)beepbuff;
+	for (int i = 0; i < beeplen / sizeof(float); i++)
+	{
+		AudioSamples[i] *= beepVolume;
+	}
+
 
 	ma_device_config deviceconfig = ma_device_config_init(ma_device_type_playback); //automatically sets values to device's native configuration
 	deviceconfig.dataCallback = data_callback;
@@ -123,7 +130,36 @@ void PlayBeepSound()
 	{
 		beepactive = true;
 	}
-	
+}
+
+void DecreaseBeepVolume()
+{
+	float volumeReciprocal = 1 / beepVolume;
+	float* AudioSamples = (float*)beepbuff;
+	for (int i = 0; i < beeplen / sizeof(float); i++)
+	{
+		AudioSamples[i] *= volumeReciprocal;
+	}
+	beepVolume -= 0.1;
+	for (int i = 0; i < beeplen / sizeof(float); i++)
+	{
+		AudioSamples[i] *= beepVolume;
+	}
+}
+
+void IncreaseBeepVolume()
+{
+	float volumeReciprocal = 1 / beepVolume;
+	float* AudioSamples = (float*)beepbuff;
+	for (int i = 0; i < beeplen / sizeof(float); i++)
+	{
+		AudioSamples[i] *= volumeReciprocal;
+	}
+	beepVolume += 0.1;
+	for (int i = 0; i < beeplen / sizeof(float); i++)
+	{
+		AudioSamples[i] *= beepVolume;
+	}
 }
 
 void DeInit()
@@ -153,8 +189,15 @@ int main(int argc, char* args[])
 			{
 				if (event.key.key == SDLK_SPACE)
 				{
-					std::cout << "Space\n";
 					PlayBeepSound();
+				}
+				if (event.key.key == SDLK_UP)
+				{
+					IncreaseBeepVolume();
+				}
+				if (event.key.key == SDLK_DOWN)
+				{
+					DecreaseBeepVolume();
 				}
 			}
 		}
