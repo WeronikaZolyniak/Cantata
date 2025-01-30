@@ -13,7 +13,7 @@ bool beepactive = false;
 Uint8* audiobuff;
 Uint32 audiolen;
 int AudioBuffByteOffset = 0;
-float AudioVolume = 0.5;
+float AudioVolume = 0.2;
 
 Uint8* beepbuff;
 Uint32 beeplen;
@@ -25,11 +25,12 @@ const int SCREEN_HEIGHT = 480;
 SDL_Window* window = nullptr;
 SDL_Surface* screenSurface = nullptr;
 
+ma_uint32 averageFrameCount = 480;
+float* outputCopy = new float[averageFrameCount * 2];
+
 void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
 	Uint8* pOutputF32 = audiobuff + AudioBuffByteOffset;
-
-	float* outputCopy = new float[frameCount * 4];
 	float* outputSamples = (float*)pOutputF32;
 	for (int i = 0; i < frameCount * 2; i++)
 	{
@@ -46,7 +47,7 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 		else
 		{
 			float* BeepSamples = (float*)(beepbuff + beepBuffByteOffset);
-			for (int i = 0; i < frameCount * 2; i++)
+			for (int i = 0; i < frameCount; i++)
 			{
 				outputCopy[2 * i] += BeepSamples[i] * beepVolume;
 				outputCopy[2 * i + 1] += BeepSamples[i] * beepVolume;
@@ -71,7 +72,7 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 	SDL_memcpy(pOutput, outputCopy,sizeof(float) * frameCount * 2);
 	AudioBuffByteOffset += sizeof(float) * frameCount * 2;
 
-	delete[] outputCopy;
+
 }
 
 void Init()
@@ -129,6 +130,10 @@ void PlayBeepSound()
 
 void DecreaseMusicVolume()
 {
+	if (AudioVolume == 0.1)
+	{
+		AudioVolume = 0;
+	}
 	if (AudioVolume > 0)
 	{
 		AudioVolume -= 0.1;
@@ -143,9 +148,28 @@ void IncreaseMusicVolume()
 	}
 }
 
+void SkipForward()
+{
+	AudioBuffByteOffset += 96000 * sizeof(float);
+	if (AudioBuffByteOffset > audiolen)
+	{
+		AudioBuffByteOffset -= audiolen;
+	}
+}
+
+void SkipBackward()
+{
+	AudioBuffByteOffset -= 96000 * sizeof(float);
+	if (AudioBuffByteOffset < 0)
+	{
+		AudioBuffByteOffset = audiolen + AudioBuffByteOffset;
+	}
+}
+
 void DeInit()
 {
 	ma_device_uninit(&device);
+	delete[] outputCopy;
 }
 
 int main(int argc, char* args[])
@@ -179,6 +203,14 @@ int main(int argc, char* args[])
 				if (event.key.key == SDLK_DOWN)
 				{
 					DecreaseMusicVolume();
+				}
+				if (event.key.key == SDLK_RIGHT)
+				{
+					SkipForward();
+				}
+				if (event.key.key == SDLK_LEFT)
+				{
+					SkipBackward();
 				}
 			}
 		}
