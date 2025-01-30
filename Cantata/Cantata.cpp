@@ -130,22 +130,12 @@ void PlayBeepSound()
 
 void DecreaseMusicVolume()
 {
-	if (AudioVolume == 0.1)
-	{
-		AudioVolume = 0;
-	}
-	if (AudioVolume > 0)
-	{
-		AudioVolume -= 0.1;
-	}
+	AudioVolume = ma_clamp(AudioVolume - 0.1, 0, 1);
 }
 
 void IncreaseMusicVolume()
 {
-	if (AudioVolume < 1)
-	{
-		AudioVolume += 0.1;
-	}
+	AudioVolume = ma_clamp(AudioVolume + 0.1, 0, 1);
 }
 
 void SkipForward()
