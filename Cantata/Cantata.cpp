@@ -48,19 +48,17 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 		else
 		{
 			float* BeepSamples = (float*)(beepbuff + beepBuffByteOffset);
-			/*for (int i = 0; i < frameCount; i++)
-			{
-				outputCopy[2 * i] += BeepSamples[i] * beepVolume;
-				outputCopy[2 * i + 1] += BeepSamples[i] * beepVolume;
-			}
 
-			beepBuffByteOffset += sizeof(float) * frameCount;*/
+			__m256 gainVector = _mm256_set1_ps(AudioVolume);
+			__m256 beepGainVector = _mm256_set1_ps(beepVolume);
 
-			for (int i = 0; i < frameCount / 2; i+=4)
+			for (int i = 0; i < frameCount * 2; i+=8)
 			{
 				if (i * sizeof(float) > audiolen) return;
-				__m256 outputCopyValues = _mm256_load_ps(outputSamples + 2 * i);
-				__m256 beepValues = _mm256_set_ps(BeepSamples[i], BeepSamples[i], BeepSamples[i + 1], BeepSamples[i + 1], BeepSamples[i + 2], BeepSamples[i + 2], BeepSamples[i + 3], BeepSamples[i + 3]);
+				__m256 outputCopyValues = _mm256_load_ps(outputSamples + i);
+				outputCopyValues = _mm256_mul_ps(gainVector, outputCopyValues);
+				__m256 beepValues = _mm256_set_ps(BeepSamples[i / 2 + 3], BeepSamples[i / 2 + 3], BeepSamples[i / 2 + 2], BeepSamples[i / 2 + 2], BeepSamples[i / 2 + 1], BeepSamples[i / 2 + 1], BeepSamples[i / 2], BeepSamples[i / 2]);
+				beepValues = _mm256_mul_ps(beepGainVector, beepValues);
 
 				__m256 result = _mm256_add_ps(outputCopyValues, beepValues);
 
