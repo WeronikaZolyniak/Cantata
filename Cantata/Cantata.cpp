@@ -3,6 +3,7 @@
 #include <SDL3/SDL_audio.h>
 #include <iostream>
 #include <vector>
+#include <immintrin.h>
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
@@ -26,7 +27,7 @@ SDL_Window* window = nullptr;
 SDL_Surface* screenSurface = nullptr;
 
 ma_uint32 averageFrameCount = 480;
-float* outputCopy = new float[averageFrameCount * 2];
+float* outputCopy = new float[averageFrameCount * 4];
 
 void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
@@ -47,13 +48,31 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 		else
 		{
 			float* BeepSamples = (float*)(beepbuff + beepBuffByteOffset);
-			for (int i = 0; i < frameCount; i++)
+			/*for (int i = 0; i < frameCount; i++)
 			{
 				outputCopy[2 * i] += BeepSamples[i] * beepVolume;
 				outputCopy[2 * i + 1] += BeepSamples[i] * beepVolume;
 			}
 
-			beepBuffByteOffset += sizeof(float) * frameCount;
+			beepBuffByteOffset += sizeof(float) * frameCount;*/
+
+			for (int i = 0; i < frameCount / 2; i+=4)
+			{
+				if (i * sizeof(float) > audiolen) return;
+				__m256 outputCopyValues = _mm256_load_ps(outputSamples + 2 * i);
+				__m256 beepValues = _mm256_set_ps(BeepSamples[i], BeepSamples[i], BeepSamples[i + 1], BeepSamples[i + 1], BeepSamples[i + 2], BeepSamples[i + 2], BeepSamples[i + 3], BeepSamples[i + 3]);
+
+				__m256 result = _mm256_add_ps(outputCopyValues, beepValues);
+
+				float* addedFloats = (float*)&result;
+
+				for (int j = 0; j < 8; j++)
+				{
+					outputCopy[i + j] = addedFloats[j];
+				}
+			}
+
+			beepBuffByteOffset += sizeof(float) * frameCount;		
 		}
 	}
 
