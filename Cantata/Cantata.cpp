@@ -9,14 +9,14 @@
 #include "miniaudio.h"
 
 ma_device device;
-bool beepactive = false;
+bool beepActive = false;
 
-Uint8* audiobuff;
-Uint32 audiolen;
-int AudioBuffByteOffset = 0;
-float AudioVolume = 0.2;
+Uint8* audioBuff;
+Uint32 audioLen;
+int audioBuffByteOffset = 0;
+float audioVolume = 0.2;
 
-Uint8* beepbuff;
+Uint8* beepBuff;
 Uint32 beeplen;
 int beepBuffByteOffset = 0;
 float beepVolume = 0.6;
@@ -31,30 +31,30 @@ float* outputCopy = new float[averageFrameCount * 4];
 
 void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
-	Uint8* pOutputF32 = audiobuff + AudioBuffByteOffset;
+	Uint8* pOutputF32 = audioBuff + audioBuffByteOffset;
 	float* outputSamples = (float*)pOutputF32;
 	for (int i = 0; i < frameCount * 2; i++)
 	{
-		outputCopy[i] = outputSamples[i] * AudioVolume;
+		outputCopy[i] = outputSamples[i] * audioVolume;
 	}
 
-	if (beepactive)
+	if (beepActive)
 	{
 		if (beepBuffByteOffset + frameCount * sizeof(float) > beeplen)
 		{
-			beepactive = false;
+			beepActive = false;
 			beepBuffByteOffset = 0;
 		}
 		else
 		{
-			float* BeepSamples = (float*)(beepbuff + beepBuffByteOffset);
+			float* BeepSamples = (float*)(beepBuff + beepBuffByteOffset);
 
-			__m256 gainVector = _mm256_set1_ps(AudioVolume);
+			__m256 gainVector = _mm256_set1_ps(audioVolume);
 			__m256 beepGainVector = _mm256_set1_ps(beepVolume);
 
 			for (int i = 0; i < frameCount * 2; i+=8)
 			{
-				if (i * sizeof(float) > audiolen) return;
+				if (i * sizeof(float) > audioLen) return;
 				__m256 outputCopyValues = _mm256_load_ps(outputSamples + i);
 				outputCopyValues = _mm256_mul_ps(gainVector, outputCopyValues);
 				__m256 beepValues = _mm256_set_ps(BeepSamples[i / 2 + 3], BeepSamples[i / 2 + 3], BeepSamples[i / 2 + 2], BeepSamples[i / 2 + 2], BeepSamples[i / 2 + 1], BeepSamples[i / 2 + 1], BeepSamples[i / 2], BeepSamples[i / 2]);
@@ -75,21 +75,18 @@ void data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uin
 	}
 
 	//looping
-	if (AudioBuffByteOffset + frameCount * sizeof(float) * 2 > audiolen)
+	if (audioBuffByteOffset + frameCount * sizeof(float) * 2 > audioLen)
 	{
-		int RestOfSoundLength = audiolen - AudioBuffByteOffset;
-		SDL_memcpy(pOutput, audiobuff + AudioBuffByteOffset, RestOfSoundLength);
+		int RestOfSoundLength = audioLen - audioBuffByteOffset;
+		SDL_memcpy(pOutput, audioBuff + audioBuffByteOffset, RestOfSoundLength);
 		int BegginingLength = (frameCount * sizeof(float) * 2) - RestOfSoundLength;
-		SDL_memcpy(pOutput, audiobuff, BegginingLength);
-		AudioBuffByteOffset = BegginingLength;
+		SDL_memcpy(pOutput, audioBuff, BegginingLength);
+		audioBuffByteOffset = BegginingLength;
 		return;
 	}
 	
-	
 	SDL_memcpy(pOutput, outputCopy,sizeof(float) * frameCount * 2);
-	AudioBuffByteOffset += sizeof(float) * frameCount * 2;
-
-
+	audioBuffByteOffset += sizeof(float) * frameCount * 2;
 }
 
 void Init()
@@ -110,12 +107,12 @@ void Init()
 
 	SDL_AudioSpec AudioSpec;
 
-	if (!SDL_LoadWAV("melody.wav", &AudioSpec, &audiobuff, &audiolen))
+	if (!SDL_LoadWAV("melody.wav", &AudioSpec, &audioBuff, &audioLen))
 	{
 		std::cout << SDL_GetError();
 	}
 
-	if (!SDL_LoadWAV("beep.wav", &AudioSpec, &beepbuff, &beeplen))
+	if (!SDL_LoadWAV("beep.wav", &AudioSpec, &beepBuff, &beeplen))
 	{
 		std::cout << SDL_GetError();
 	}
@@ -133,43 +130,43 @@ void Init()
 	ma_device_info device_info;
 	if (ma_device_get_info(&device, ma_device_type_playback, &device_info) != MA_SUCCESS)
 	{
-		SDL_Log("Failed to query info about Signals device!");
+		std::cout << "failed to query info about Signals device\n";
 	}
 }
 
 void PlayBeepSound()
 {
-	if (!beepactive)
+	if (!beepActive)
 	{
-		beepactive = true;
+		beepActive = true;
 	}
 }
 
 void DecreaseMusicVolume()
 {
-	AudioVolume = ma_clamp(AudioVolume - 0.1, 0, 1);
+	audioVolume = ma_clamp(audioVolume - 0.1, 0, 1);
 }
 
 void IncreaseMusicVolume()
 {
-	AudioVolume = ma_clamp(AudioVolume + 0.1, 0, 1);
+	audioVolume = ma_clamp(audioVolume + 0.1, 0, 1);
 }
 
 void SkipForward()
 {
-	AudioBuffByteOffset += 96000 * sizeof(float);
-	if (AudioBuffByteOffset > audiolen)
+	audioBuffByteOffset += 96000 * sizeof(float);
+	if (audioBuffByteOffset > audioLen)
 	{
-		AudioBuffByteOffset -= audiolen;
+		audioBuffByteOffset -= audioLen;
 	}
 }
 
 void SkipBackward()
 {
-	AudioBuffByteOffset -= 96000 * sizeof(float);
-	if (AudioBuffByteOffset < 0)
+	audioBuffByteOffset -= 96000 * sizeof(float);
+	if (audioBuffByteOffset < 0)
 	{
-		AudioBuffByteOffset = audiolen + AudioBuffByteOffset;
+		audioBuffByteOffset = audioLen + audioBuffByteOffset;
 	}
 }
 
@@ -222,7 +219,6 @@ int main(int argc, char* args[])
 			}
 		}
 	}
-
 
 	DeInit();
 	return 0;
